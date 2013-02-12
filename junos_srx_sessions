@@ -49,10 +49,9 @@ def check_junos_srx_sessions(item, params, info):
 
 def inventory_junos_srx_sessions(checkname,info):
     inventory = []
-    import pprint;pprint.pprint(info)
     for line in info:
         if line[0] != "":
-            inventory.append((line[0], None))
+            inventory.append((line[0], "junos_srx_sessions_default_levels"))
     return inventory
 
 
