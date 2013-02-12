@@ -37,14 +37,27 @@ from socket import inet_ntoa
 # warn, crit numbers of pool members
 f5_bigip_pool_default_levels = (2, 1)
 
+factory_settings["f5_bigip_pool_default_levels"] = {
+    "warn_and_crit_count"    : (2, 1),
+}
+
 
 def inventory_f5_bigip_pool(checkname,info):
 # inventorize all pools and their member count
     inventory = []
+    params = factory_settings["f5_bigip_pool_default_levels"].copy()
     state_info, stats_info, members_info = info
     for line in state_info:
-        if line[0] != "":
-            inventory.append((line[0],"f5_bigip_pool_default_levels"))
+        if line[0] != "" and line[1] != "0":
+            activeMembers = int(line[1])
+            if activeMembers == 1:
+                params["warn_and_crit_count"] = (0,0)
+            else:
+                params["warn_and_crit_count"] = (
+                    activeMembers - 1, 
+                    factory_settings["f5_bigip_pool_default_levels"]["warn_and_crit_count"][1]
+                )
+            inventory.append((line[0],params))
     return inventory
 
 
@@ -79,22 +92,18 @@ def check_f5_bigip_pool(item, params, info):
                 ]
     for line in state_info:
         if line[0] == item:
-            warn_num_members, crit_num_members = params
+            warn_num_members, crit_num_members = params["warn_and_crit_count"]
             pool_act_members = int(line[1])
             pool_def_members = int(line[2])
             pool_mem_data = ("pool_members", pool_act_members,'','',0,pool_def_members)
             perfdata.append(pool_mem_data)
             perf_sting = ". Conns: %s, ConnSpawnRate: %.2f/s" % (pool_cur_conns,rate)
-            if len(red_members) == 0 and pool_act_members > 0 :
-                return (0, "OK - all members online %s" % perf_sting,perfdata)
-            elif pool_act_members == 0:
-                return (2, "CRIT - no pool members left", perfdata)
-            elif pool_act_members <= crit_num_members:
-                return (2, "CRIT - only %s pool member(s) left %s. Downs: %s" % (pool_act_members,perf_sting," ".join(red_members)),perfdata)
-            elif len(red_members) > 0 :
-                return (1, "WARN - %i pool members are DOWN %s. Downs: %s" % (len(red_members), perf_sting, " ".join(red_members)),perfdata)
+            if crit_num_members >= pool_act_members:
+                return (2, "CRIT - %s pool member(s) left %s. Downs: %s" % (pool_act_members,perf_sting," ".join(red_members)),perfdata)
+            elif warn_num_members >= pool_act_members:
+                return (1, "WARN - %s pool member(s) left %s. Downs: %s" % (pool_act_members,perf_sting," ".join(red_members)),perfdata)
             else:
-                return (3, "UNKNOWN output for pool %s" % item,perfdata)
+                return (0, "OK - all members online %s" % perf_sting,perfdata)
     return (3, "UNKNOWN - unexpected Output from SNMP Agent")
 
 
