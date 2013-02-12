@@ -35,8 +35,6 @@
 from socket import inet_ntoa
 
 # warn, crit numbers of pool members
-f5_bigip_pool_default_levels = (2, 1)
-
 factory_settings["f5_bigip_pool_default_levels"] = {
     "warn_and_crit_count"    : (2, 1),
 }

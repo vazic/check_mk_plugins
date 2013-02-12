@@ -24,49 +24,39 @@
 # to the Free Software Foundation, Inc., 51 Franklin St,  Fifth Floor,
 # Boston, MA 02110-1301 USA.
 
-factory_settings["junos_srx_sessions_default_levels"] = {
-    "session_levels"    : (80, 95),
-}
+junos_srx_mem_default_levels = (80.0, 90.0)
 
-
-def check_junos_srx_sessions(item, params, info):
+def check_junos_srx_mem(item, params, info):
     for line in info:
-        if line[0] != "" and line[0] == item:
-            warn, crit = params["session_levels"]
-            sessionsCur = int(line[1])
-            sessionsMax = int(line[2])
-            sessionsWarn = warn / 100.0 * sessionsMax
-            sessionsCrit = crit / 100.0 * sessionsMax
-            perfdata = [("FlowSessions", sessionsCur, sessionsWarn,sessionsCrit, 0 , sessionsMax)]
-            if sessionsCur > sessionsCrit:
-                state = 2
-            elif sessionsCur > sessionsWarn:
-                state = 1
+        if line[0] != "" and "%s Memory" % line[0] == item:
+            util = float(line[1]) 
+            infotext = " - %2.1f%% utilization" % util
+            warn, crit = params
+            perfdata = [("util", util, warn, crit, 0, 100)]
+            if util >= crit:
+                return (2, "CRIT" + infotext + " (critical at %d%%)" % crit, perfdata)
+            elif util >= warn:
+                return (1, "WARN" + infotext + " (warning at %d%%)" % warn, perfdata)
             else:
-                state = 0
-            return (state, "%i of %i (cur/max)" % (sessionsCur,sessionsMax),perfdata)
-    return (3, "UNKNOWN - FlowSessions for %s not found!" % item)
+                return (0, "OK" + infotext, perfdata)
+    return (3, "UNKNOWN - Memory data for %s not found!" % item)
 
-def inventory_junos_srx_sessions(checkname,info):
+def inventory_junos_srx_mem(checkname,info):
     inventory = []
     for line in info:
         if line[0] != "":
-            inventory.append((line[0], "junos_srx_sessions_default_levels"))
+            inventory.append(("%s Memory" % line[0], "junos_srx_mem_default_levels"))
     return inventory
 
+check_info["junos_srx_mem"] = {
+    "check_function"        : check_junos_srx_mem,
+    "inventory_function"    : inventory_junos_srx_mem,
+    "service_description"   : "Memory utilization",
+    "has_perfdata"          : True,
+    "snmp_info"		    : ( ".1.3.6.1.4.1.2636.3.39.1.12.1.1.1", [ 11 , 5]),
+}
 
-check_info["junos_srx_sessions"] = (check_junos_srx_sessions, " %s Flow Sessions", 1, inventory_junos_srx_sessions )
-
-snmp_info["junos_srx_sessions"] = \
-    ( ".1.3.6.1.4.1.2636.3.39.1.12.1.1.1", [
-        11, # Desc
-        6, #  CurSessions
-        7, #  MAXSessions
-      ])
-
-check_default_levels["junos_srx_sessions"] = "junos_srx_sessions_default_levels"
-
-snmp_scan_functions['junos_srx_sessions'] = \
+snmp_scan_functions['junos_srx_mem'] = \
     lambda oid: oid("1.3.6.1.2.1.1.2.0") in [
                            ".1.3.6.1.4.1.2636.1.1.1.2.26",
                            ".1.3.6.1.4.1.2636.1.1.1.2.28",
